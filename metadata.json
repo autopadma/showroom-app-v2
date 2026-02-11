@@ -1,0 +1,7 @@
+{
+  "name": "RYAN ENTERPRISE",
+  "description": "A comprehensive showroom management system featuring stock tracking, sales processing with automated chassis lookup, and a detailed customer database with AI-powered search.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
