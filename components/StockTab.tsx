@@ -1,17 +1,18 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bike, Container } from '../types';
 import { Plus, Upload, Trash2, Search, FileDown, X, Box } from 'lucide-react';
+import { db } from '../services/database';
 
 interface Props {
-  stock: Bike[];
   containers: Container[];
   onAddBike: (bike: Omit<Bike, 'id' | 'status'>) => void;
   onAddBulk: (bikes: Omit<Bike, 'id' | 'status'>[]) => void;
   onRemove: (id: string) => void;
 }
 
-const StockTab: React.FC<Props> = ({ stock, containers, onAddBike, onAddBulk, onRemove }) => {
+const StockTab: React.FC<Props> = ({ containers, onAddBike, onAddBulk, onRemove }) => {
+  const [stock, setStock] = useState<Bike[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [bulkMode, setBulkMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -29,6 +30,23 @@ const StockTab: React.FC<Props> = ({ stock, containers, onAddBike, onAddBulk, on
   // Bulk Data State
   const [bulkInput, setBulkInput] = useState('');
 
+  // Load motorcycles from database
+  useEffect(() => {
+    loadMotorcycles();
+  }, []);
+
+  const loadMotorcycles = async () => {
+    setLoading(true);
+    try {
+      const data = await db.getMotorcycles();
+      setStock(data);
+    } catch (error) {
+      console.error('Error loading motorcycles:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const filteredStock = stock.filter(b => 
     b.status === 'available' && (
       b.model.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -37,33 +55,82 @@ const StockTab: React.FC<Props> = ({ stock, containers, onAddBike, onAddBulk, on
     )
   );
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onAddBike({
-      model: formData.model,
-      chassis: formData.chassis,
-      engine: formData.engine,
-      color: formData.color,
-      exporterName: formData.exporterName || undefined,
-      containerId: formData.containerId || undefined
-    });
-    setFormData({ model: '', chassis: '', engine: '', color: '', exporterName: '', containerId: '' });
-    setShowModal(false);
+    try {
+      await db.addMotorcycle({
+        model: formData.model,
+        chassis: formData.chassis,
+        engine: formData.engine,
+        color: formData.color,
+        exporterName: formData.exporterName || undefined,
+        containerId: formData.containerId || undefined
+      });
+      
+      // Refresh the list
+      await loadMotorcycles();
+      
+      // Reset form
+      setFormData({ model: '', chassis: '', engine: '', color: '', exporterName: '', containerId: '' });
+      setShowModal(false);
+      
+      // Call the original prop for compatibility
+      onAddBike(formData as any);
+    } catch (error) {
+      console.error('Error adding motorcycle:', error);
+      alert('Failed to add motorcycle. Check console for details.');
+    }
   };
 
-  const handleBulkSubmit = () => {
-    // Process CSV/Tab format: model,chassis,engine,color
-    const rows = bulkInput.trim().split('\n');
-    const bikes = rows.map(row => {
-      const [model, chassis, engine, color] = row.split(/[,\t]/).map(s => s.trim());
-      return { model, chassis, engine, color };
-    }).filter(b => b.model && b.chassis);
-    
-    onAddBulk(bikes);
-    setBulkInput('');
-    setBulkMode(false);
-    setShowModal(false);
+  const handleBulkSubmit = async () => {
+    try {
+      // Process CSV/Tab format: model,chassis,engine,color
+      const rows = bulkInput.trim().split('\n');
+      const bikes = rows.map(row => {
+        const [model, chassis, engine, color] = row.split(/[,\t]/).map(s => s.trim());
+        return { model, chassis, engine, color };
+      }).filter(b => b.model && b.chassis);
+      
+      await db.addBulkMotorcycles(bikes);
+      
+      // Refresh the list
+      await loadMotorcycles();
+      
+      setBulkInput('');
+      setBulkMode(false);
+      setShowModal(false);
+      
+      // Call the original prop
+      onAddBulk(bikes);
+    } catch (error) {
+      console.error('Error bulk adding motorcycles:', error);
+      alert('Failed to add motorcycles. Check console for details.');
+    }
   };
+
+  const handleRemove = async (id: string) => {
+    if (window.confirm('Are you sure you want to remove this bike?')) {
+      try {
+        await db.deleteMotorcycle(id);
+        await loadMotorcycles();
+        onRemove(id);
+      } catch (error) {
+        console.error('Error removing motorcycle:', error);
+        alert('Failed to remove motorcycle.');
+      }
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading stock...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -132,7 +199,7 @@ const StockTab: React.FC<Props> = ({ stock, containers, onAddBike, onAddBulk, on
                     </td>
                     <td className="px-6 py-4">
                       <button 
-                        onClick={() => onRemove(bike.id)}
+                        onClick={() => handleRemove(bike.id)}
                         className="p-2 text-gray-400 hover:text-red-500 transition-colors"
                       >
                         <Trash2 size={18} />

@@ -1,7 +1,7 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Container, Bike, Sale } from '../types';
 import { Package, Plus, Upload, FileDown, Search, ArrowLeft, TrendingUp, DollarSign } from 'lucide-react';
+import { db } from '../services/database';
 
 interface Props {
   containers: Container[];
@@ -11,7 +11,15 @@ interface Props {
   onAddBikesToContainer: (containerId: string, bikes: Omit<Bike, 'id' | 'status'>[]) => void;
 }
 
-const ContainersTab: React.FC<Props> = ({ containers, stock, sales, onAddContainer, onAddBikesToContainer }) => {
+const ContainersTab: React.FC<Props> = ({ 
+  containers: propContainers, 
+  stock, 
+  sales, 
+  onAddContainer, 
+  onAddBikesToContainer 
+}) => {
+  const [containers, setContainers] = useState<Container[]>(propContainers);
+  const [loading, setLoading] = useState(false);
   const [view, setView] = useState<'list' | 'detail'>('list');
   const [selectedContainer, setSelectedContainer] = useState<Container | null>(null);
   
@@ -22,40 +30,90 @@ const ContainersTab: React.FC<Props> = ({ containers, stock, sales, onAddContain
   // Bulk Import State
   const [bulkInput, setBulkInput] = useState('');
   const [showImportModal, setShowImportModal] = useState(false);
+  const [importing, setImporting] = useState(false);
 
-  const handleCreateContainer = (e: React.FormEvent) => {
-    e.preventDefault();
-    const container: Container = {
-      id: crypto.randomUUID(),
-      name: newContainerName,
-      exporterName: newExporterName,
-      importDate: new Date().toISOString(),
-      bikeIds: []
-    };
-    onAddContainer(container);
-    setNewContainerName('');
-    setNewExporterName('');
+  // Load containers from database on mount
+  useEffect(() => {
+    loadContainers();
+  }, []);
+
+  const loadContainers = async () => {
+    setLoading(true);
+    try {
+      const data = await db.getContainers();
+      setContainers(data);
+    } catch (error) {
+      console.error('Error loading containers:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleBulkSubmit = () => {
-    if (!selectedContainer) return;
-    // Format: Model, Chassis, Engine, Color, BuyingPrice
-    const rows = bulkInput.trim().split('\n');
-    const bikes = rows.map(row => {
-      const [model, chassis, engine, color, price] = row.split(/[,\t]/).map(s => s.trim());
-      return { 
-        model, 
-        chassis, 
-        engine, 
-        color, 
-        buyingPrice: price ? Number(price) : 0,
-        containerId: selectedContainer.id
-      };
-    }).filter(b => b.model && b.chassis);
+  const handleCreateContainer = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    onAddBikesToContainer(selectedContainer.id, bikes);
-    setBulkInput('');
-    setShowImportModal(false);
+    try {
+      const newContainer = await db.addContainer({
+        name: newContainerName,
+        exporterName: newExporterName,
+        importDate: new Date().toISOString(),
+        bikeIds: []
+      });
+      
+      // Update local state
+      setContainers(prev => [...prev, newContainer]);
+      
+      // Call original prop
+      onAddContainer(newContainer);
+      
+      // Reset form
+      setNewContainerName('');
+      setNewExporterName('');
+      
+    } catch (error) {
+      console.error('Error creating container:', error);
+      alert('Failed to create container');
+    }
+  };
+
+  const handleBulkSubmit = async () => {
+    if (!selectedContainer) return;
+    
+    setImporting(true);
+    try {
+      // Format: Model, Chassis, Engine, Color, BuyingPrice
+      const rows = bulkInput.trim().split('\n');
+      const bikes = rows.map(row => {
+        const [model, chassis, engine, color, price] = row.split(/[,\t]/).map(s => s.trim());
+        return { 
+          model, 
+          chassis, 
+          engine, 
+          color, 
+          buyingPrice: price ? Number(price) : 0,
+          containerId: selectedContainer.id
+        };
+      }).filter(b => b.model && b.chassis);
+      
+      // Add bikes to database
+      await db.addBulkMotorcycles(bikes);
+      
+      // Refresh data
+      await loadContainers();
+      
+      // Call original prop
+      onAddBikesToContainer(selectedContainer.id, bikes);
+      
+      // Reset
+      setBulkInput('');
+      setShowImportModal(false);
+      
+    } catch (error) {
+      console.error('Error importing bikes:', error);
+      alert('Failed to import bikes');
+    } finally {
+      setImporting(false);
+    }
   };
 
   const exportToExcel = (container: Container) => {
@@ -81,6 +139,17 @@ const ContainersTab: React.FC<Props> = ({ containers, stock, sales, onAddContain
     link.click();
     document.body.removeChild(link);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading containers...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (view === 'detail' && selectedContainer) {
     const containerBikes = stock.filter(b => b.containerId === selectedContainer.id);
@@ -193,10 +262,23 @@ const ContainersTab: React.FC<Props> = ({ containers, stock, sales, onAddContain
                 className="w-full p-4 border border-gray-200 rounded-xl font-mono text-sm focus:outline-none mb-4"
                 value={bulkInput}
                 onChange={(e) => setBulkInput(e.target.value)}
+                disabled={importing}
               />
               <div className="flex gap-4">
-                <button onClick={() => setShowImportModal(false)} className="flex-1 py-3 border border-gray-200 rounded-xl font-bold">Cancel</button>
-                <button onClick={handleBulkSubmit} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold">Import</button>
+                <button 
+                  onClick={() => setShowImportModal(false)} 
+                  className="flex-1 py-3 border border-gray-200 rounded-xl font-bold hover:bg-gray-50"
+                  disabled={importing}
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleBulkSubmit} 
+                  className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50"
+                  disabled={importing || !bulkInput.trim()}
+                >
+                  {importing ? 'Importing...' : 'Import'}
+                </button>
               </div>
             </div>
           </div>

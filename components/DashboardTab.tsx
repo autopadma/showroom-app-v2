@@ -1,7 +1,7 @@
-
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bike, Customer, Sale, AppTab } from '../types';
 import { Package, TrendingUp, Users, DollarSign, ArrowRight } from 'lucide-react';
+import { db } from '../services/database';
 
 interface Props {
   stock: Bike[];
@@ -10,17 +10,56 @@ interface Props {
   onNavigate: (tab: AppTab) => void;
 }
 
-const DashboardTab: React.FC<Props> = ({ stock, sales, customers, onNavigate }) => {
-  const availableBikes = stock.filter(b => b.status === 'available').length;
-  const totalRevenue = sales.reduce((sum, s) => sum + s.salePrice, 0);
+const DashboardTab: React.FC<Props> = ({ onNavigate }) => {
+  const [stats, setStats] = useState({
+    inStock: 0,
+    outOfStock: 0,
+    totalSales: 0,
+    totalRevenue: 0,
+    totalCustomers: 0
+  });
+  const [recentSales, setRecentSales] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    setLoading(true);
+    try {
+      const [statsData, recentSalesData] = await Promise.all([
+        db.getDashboardStats(),
+        db.getRecentSales(5)
+      ]);
+      
+      setStats(statsData);
+      setRecentSales(recentSalesData);
+    } catch (error) {
+      console.error('Error loading dashboard:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard icon={<Package className="text-blue-600" />} label="Available Stock" value={availableBikes} bgColor="bg-blue-50" />
-        <StatCard icon={<TrendingUp className="text-green-600" />} label="Total Sales" value={sales.length} bgColor="bg-green-50" />
-        <StatCard icon={<Users className="text-purple-600" />} label="Total Customers" value={customers.length} bgColor="bg-purple-50" />
-        <StatCard icon={<DollarSign className="text-amber-600" />} label="Total Revenue" value={`৳${totalRevenue.toLocaleString()}`} bgColor="bg-amber-50" />
+        <StatCard icon={<Package className="text-blue-600" />} label="Available Stock" value={stats.inStock} bgColor="bg-blue-50" />
+        <StatCard icon={<TrendingUp className="text-green-600" />} label="Total Sales" value={stats.totalSales} bgColor="bg-green-50" />
+        <StatCard icon={<Users className="text-purple-600" />} label="Total Customers" value={stats.totalCustomers} bgColor="bg-purple-50" />
+        <StatCard icon={<DollarSign className="text-amber-600" />} label="Total Revenue" value={`৳${stats.totalRevenue.toLocaleString()}`} bgColor="bg-amber-50" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -42,19 +81,17 @@ const DashboardTab: React.FC<Props> = ({ stock, sales, customers, onNavigate }) 
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {sales.slice(-5).reverse().map(sale => {
-                  const customer = customers.find(c => c.id === sale.customerId);
-                  const bike = stock.find(b => b.id === sale.bikeId);
-                  return (
-                    <tr key={sale.id} className="text-sm">
-                      <td className="py-4 font-medium text-gray-500">{new Date(sale.saleDate).toLocaleDateString()}</td>
-                      <td className="py-4 font-semibold text-gray-800">{customer?.name || 'Unknown'}</td>
-                      <td className="py-4 text-gray-600">{bike?.model || 'Unknown'}</td>
-                      <td className="py-4 font-bold text-indigo-600">৳{sale.salePrice.toLocaleString()}</td>
-                    </tr>
-                  );
-                })}
-                {sales.length === 0 && (
+                {recentSales.map((sale: any, index: number) => (
+                  <tr key={index} className="text-sm">
+                    <td className="py-4 font-medium text-gray-500">
+                      {new Date(sale.date).toLocaleDateString()}
+                    </td>
+                    <td className="py-4 font-semibold text-gray-800">{sale.customer}</td>
+                    <td className="py-4 text-gray-600">{sale.model}</td>
+                    <td className="py-4 font-bold text-indigo-600">৳{Number(sale.price).toLocaleString()}</td>
+                  </tr>
+                ))}
+                {recentSales.length === 0 && (
                   <tr>
                     <td colSpan={4} className="py-8 text-center text-gray-400 italic">No sales recorded yet</td>
                   </tr>
@@ -69,11 +106,11 @@ const DashboardTab: React.FC<Props> = ({ stock, sales, customers, onNavigate }) 
           <div className="space-y-4">
             <div className="p-4 rounded-lg bg-gray-50 flex items-center justify-between">
               <span className="text-gray-600 text-sm font-medium">In Stock</span>
-              <span className="font-bold text-indigo-600 text-lg">{availableBikes}</span>
+              <span className="font-bold text-indigo-600 text-lg">{stats.inStock}</span>
             </div>
             <div className="p-4 rounded-lg bg-gray-50 flex items-center justify-between">
               <span className="text-gray-600 text-sm font-medium">Out of Stock</span>
-              <span className="font-bold text-gray-400 text-lg">{stock.filter(b => b.status === 'sold').length}</span>
+              <span className="font-bold text-gray-400 text-lg">{stats.outOfStock}</span>
             </div>
           </div>
           <button 

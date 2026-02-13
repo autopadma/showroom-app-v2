@@ -1,7 +1,7 @@
-
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Customer, Bike, Sale, Container } from '../types';
 import { Search, MapPin, Phone, User, Calendar, CreditCard, FileText, X, ChevronRight, Printer, Filter, ShoppingCart, Save } from 'lucide-react';
+import { db } from '../services/database';
 
 interface Props {
   customers: Customer[];
@@ -30,7 +30,7 @@ const BIKE_SPECS: Record<string, { cc: string, laden: string, unladen: string, s
 const getSpecs = (model: string) => {
   const modelLower = model.toLowerCase();
   
-  // Sort keys by length descending to match longest specific string first (e.g. match 'r15m' before 'r15')
+  // Sort keys by length descending to match longest specific string first
   const keys = Object.keys(BIKE_SPECS).sort((a, b) => b.length - a.length);
   
   for (const key of keys) {
@@ -42,12 +42,40 @@ const getSpecs = (model: string) => {
   return { cc: 'N/A', laden: 'N/A', unladen: 'N/A', seat: '2 Persons' };
 };
 
-const CustomersTab: React.FC<Props> = ({ customers, stock, sales, containers, onPurchaseMore, onUpdateBikeReg, onUpdateCustomerNotes }) => {
+const CustomersTab: React.FC<Props> = ({ 
+  customers: propCustomers, 
+  stock, 
+  sales, 
+  containers, 
+  onPurchaseMore, 
+  onUpdateBikeReg, 
+  onUpdateCustomerNotes 
+}) => {
+  const [customers, setCustomers] = useState<Customer[]>(propCustomers);
+  const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [dateFilter, setDateFilter] = useState(''); // Format: YYYY-MM
+  const [dateFilter, setDateFilter] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [regInput, setRegInput] = useState<Record<string, string>>({});
   const [notesInput, setNotesInput] = useState('');
+  const [updating, setUpdating] = useState(false);
+
+  // Load customers from database on mount
+  useEffect(() => {
+    loadCustomers();
+  }, []);
+
+  const loadCustomers = async () => {
+    setLoading(true);
+    try {
+      const data = await db.getCustomers();
+      setCustomers(data);
+    } catch (error) {
+      console.error('Error loading customers:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const filteredCustomers = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
@@ -95,7 +123,7 @@ const CustomersTab: React.FC<Props> = ({ customers, stock, sales, containers, on
 
   const handlePrintBankSlip = (customer: Customer, bike: Bike) => {
     const sale = sales.find(s => s.bikeId === bike.id && s.customerId === customer.id);
-    const saleDate = sale ? new Date(sale.saleDate).toLocaleDateString() : 'N/A';
+    const saleDate = sale ? new Date(s.saleDate).toLocaleDateString() : 'N/A';
     const dobFormatted = new Date(customer.dob).toLocaleDateString();
     const specs = getSpecs(bike.model);
 
@@ -177,12 +205,66 @@ const CustomersTab: React.FC<Props> = ({ customers, stock, sales, containers, on
     setNotesInput(customer.notes || '');
   };
 
-  const handleSaveNotes = () => {
-    if (selectedCustomer) {
-      onUpdateCustomerNotes(selectedCustomer.id, notesInput);
+  const handleSaveNotes = async () => {
+    if (!selectedCustomer) return;
+    
+    setUpdating(true);
+    try {
+      await db.updateCustomerNotes(selectedCustomer.id, notesInput);
+      
+      // Update local state
       setSelectedCustomer({ ...selectedCustomer, notes: notesInput });
+      setCustomers(prev => prev.map(c => 
+        c.id === selectedCustomer.id ? { ...c, notes: notesInput } : c
+      ));
+      
+      // Call the original prop
+      onUpdateCustomerNotes(selectedCustomer.id, notesInput);
+      
+    } catch (error) {
+      console.error('Error updating notes:', error);
+      alert('Failed to update notes');
+    } finally {
+      setUpdating(false);
     }
   };
+
+  const handleUpdateReg = async (bikeId: string) => {
+    const regNumber = regInput[bikeId];
+    if (!regNumber) return;
+    
+    setUpdating(true);
+    try {
+      await db.updateMotorcycleRegistration(bikeId, regNumber);
+      
+      // Call the original prop
+      onUpdateBikeReg(bikeId, regNumber);
+      
+      // Clear the input
+      setRegInput(prev => {
+        const newState = { ...prev };
+        delete newState[bikeId];
+        return newState;
+      });
+      
+    } catch (error) {
+      console.error('Error updating registration:', error);
+      alert('Failed to update registration number');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading customers...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -382,11 +464,13 @@ const CustomersTab: React.FC<Props> = ({ customers, stock, sales, containers, on
                               placeholder={bike.registrationNumber || "Enter Registration Number"}
                               value={regInput[bikeId] ?? bike.registrationNumber ?? ''}
                               onChange={(e) => setRegInput(prev => ({...prev, [bikeId]: e.target.value}))}
+                              disabled={updating}
                             />
                             {(regInput[bikeId] !== undefined && regInput[bikeId] !== (bike.registrationNumber || '')) && (
                               <button 
-                                onClick={() => onUpdateBikeReg(bikeId, regInput[bikeId])}
-                                className="text-indigo-600 hover:text-indigo-800"
+                                onClick={() => handleUpdateReg(bikeId)}
+                                disabled={updating}
+                                className="text-indigo-600 hover:text-indigo-800 disabled:opacity-50"
                               >
                                 <Save size={18} />
                               </button>
@@ -416,9 +500,10 @@ const CustomersTab: React.FC<Props> = ({ customers, stock, sales, containers, on
                     </div>
                     <button 
                       onClick={handleSaveNotes}
-                      className="text-xs normal-case bg-indigo-600 text-white px-3 py-1 rounded-md hover:bg-indigo-700 transition-colors flex items-center gap-1"
+                      disabled={updating}
+                      className="text-xs normal-case bg-indigo-600 text-white px-3 py-1 rounded-md hover:bg-indigo-700 transition-colors flex items-center gap-1 disabled:opacity-50"
                     >
-                      <Save size={12} /> Save
+                      <Save size={12} /> {updating ? 'Saving...' : 'Save'}
                     </button>
                   </h3>
                   <textarea
@@ -427,6 +512,7 @@ const CustomersTab: React.FC<Props> = ({ customers, stock, sales, containers, on
                     onChange={(e) => setNotesInput(e.target.value)}
                     rows={4}
                     placeholder="Add notes here..."
+                    disabled={updating}
                   />
                 </section>
               </div>
@@ -439,7 +525,11 @@ const CustomersTab: React.FC<Props> = ({ customers, stock, sales, containers, on
 };
 
 const BoxIcon: React.FC<{ size?: number, className?: string }> = ({ size = 20, className = "" }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
+    <path d="m3.3 7 8.7 5 8.7-5"/>
+    <path d="M12 22V12"/>
+  </svg>
 );
 
 export default CustomersTab;
