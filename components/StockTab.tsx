@@ -57,6 +57,7 @@ const StockTab: React.FC<Props> = ({ containers, onAddBike, onAddBulk, onRemove 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('Form data:', formData);
     try {
       await db.addMotorcycle({
         model: formData.model,
