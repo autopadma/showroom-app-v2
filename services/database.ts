@@ -23,6 +23,7 @@ export const db = {
   async addMotorcycle(bike: any) {
   console.log('Adding motorcycle:', bike);
   try {
+    // ✅ Correct - using tagged template with backticks
     const result = await sql`
       INSERT INTO motorcycles (
         model, chassis, engine, color, exporter_name, container_id, buying_price
@@ -37,14 +38,14 @@ export const db = {
       )
       RETURNING *
     `;
-    console.log('Success:', result[0]);
+    
+    console.log('✅ Success:', result[0]);
     return result[0];
   } catch (error) {
-    console.error('Database error details:', error);
+    console.error('❌ Error:', error);
     throw error;
   }
 }
-
  async addBulkMotorcycles(bikes: any[]) {
   console.log('Bulk adding motorcycles:', bikes);
   try {
