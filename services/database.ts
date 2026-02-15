@@ -57,51 +57,39 @@ export const db = {
 
   async addBulkMotorcycles(bikes: any[]) {
   console.log('📦 Bulk adding', bikes.length, 'motorcycles');
+  console.log('First bike containerId:', bikes[0]?.containerId); // Debug log
+  
   try {
     const results = [];
     
     for (const bike of bikes) {
-      // Check if chassis already exists
-      const existing = await sql`
-        SELECT id FROM motorcycles WHERE chassis = ${bike.chassis}
+      console.log('Inserting bike with containerId:', bike.containerId); // Debug log
+      
+      const result = await sql`
+        INSERT INTO motorcycles (
+          model, 
+          chassis, 
+          engine, 
+          color, 
+          exporter_name, 
+          container_id,  -- This is the database column
+          buying_price
+        ) VALUES (
+          ${bike.model}, 
+          ${bike.chassis}, 
+          ${bike.engine}, 
+          ${bike.color}, 
+          ${bike.exporterName || null},
+          ${bike.containerId || null},  -- This matches the column
+          ${bike.buyingPrice || null}
+        )
+        RETURNING *
       `;
       
-      if (existing.length > 0) {
-        // Update existing motorcycle
-        console.log(`🔄 Updating existing chassis: ${bike.chassis}`);
-        const result = await sql`
-          UPDATE motorcycles 
-          SET model = ${bike.model},
-              engine = ${bike.engine},
-              color = ${bike.color},
-              exporter_name = ${bike.exporterName || null},
-              container_id = ${bike.containerId || null},
-              buying_price = ${bike.buyingPrice || null}
-          WHERE chassis = ${bike.chassis}
-          RETURNING *
-        `;
-        results.push(result[0]);
-      } else {
-        // Insert new motorcycle
-        const result = await sql`
-          INSERT INTO motorcycles (
-            model, chassis, engine, color, exporter_name, container_id, buying_price
-          ) VALUES (
-            ${bike.model}, 
-            ${bike.chassis}, 
-            ${bike.engine}, 
-            ${bike.color}, 
-            ${bike.exporterName || null},
-            ${bike.containerId || null},
-            ${bike.buyingPrice || null}
-          )
-          RETURNING *
-        `;
-        results.push(result[0]);
-      }
+      results.push(result[0]);
     }
     
-    alert(`✅ Processed ${results.length} motorcycles (updated duplicates)`);
+    console.log('✅ Bulk add results:', results);
     return results;
     
   } catch (error) {
