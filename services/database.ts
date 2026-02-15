@@ -56,14 +56,33 @@ export const db = {
   },
 
   async addBulkMotorcycles(bikes: any[]) {
-    console.log('📦 Bulk adding', bikes.length, 'motorcycles');
-    try {
-      const results = [];
+  console.log('📦 Bulk adding', bikes.length, 'motorcycles');
+  try {
+    const results = [];
+    
+    for (const bike of bikes) {
+      // Check if chassis already exists
+      const existing = await sql`
+        SELECT id FROM motorcycles WHERE chassis = ${bike.chassis}
+      `;
       
-      // Insert one by one - this is fine for small batches
-      for (const bike of bikes) {
-        console.log('Inserting:', bike);
-        
+      if (existing.length > 0) {
+        // Update existing motorcycle
+        console.log(`🔄 Updating existing chassis: ${bike.chassis}`);
+        const result = await sql`
+          UPDATE motorcycles 
+          SET model = ${bike.model},
+              engine = ${bike.engine},
+              color = ${bike.color},
+              exporter_name = ${bike.exporterName || null},
+              container_id = ${bike.containerId || null},
+              buying_price = ${bike.buyingPrice || null}
+          WHERE chassis = ${bike.chassis}
+          RETURNING *
+        `;
+        results.push(result[0]);
+      } else {
+        // Insert new motorcycle
         const result = await sql`
           INSERT INTO motorcycles (
             model, chassis, engine, color, exporter_name, container_id, buying_price
@@ -78,19 +97,18 @@ export const db = {
           )
           RETURNING *
         `;
-        
         results.push(result[0]);
       }
-      
-      console.log('✅ Bulk add successful:', results.length);
-      return results;
-      
-    } catch (error) {
-      console.error('❌ Error in bulk add:', error);
-      throw error;
     }
-  },
-
+    
+    alert(`✅ Processed ${results.length} motorcycles (updated duplicates)`);
+    return results;
+    
+  } catch (error) {
+    console.error('❌ Error in bulk add:', error);
+    throw error;
+  }
+}
   async findMotorcycleByChassis(chassis: string) {
     const result = await sql`
       SELECT * FROM motorcycles 
