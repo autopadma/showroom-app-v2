@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bike, Container } from '../types';
 import { Plus, Upload, Trash2, Search, FileDown, X, Box } from 'lucide-react';
-import { db } from './services/database';
+import { db } from '../services/database';
 
 interface Props {
   containers: Container[];

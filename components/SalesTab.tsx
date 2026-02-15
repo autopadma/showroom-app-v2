@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bike, Customer, Sale } from '../types';
 import { Search, ShoppingBag, History, User, CreditCard, Check, ArrowLeft } from 'lucide-react';
-import { db } from './services/database';
+import { db } from '../services/database';
 
 interface Props {
   stock: Bike[];

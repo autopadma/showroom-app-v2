@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bike, Customer, Sale, AppTab } from '../types';
 import { Package, TrendingUp, Users, DollarSign, ArrowRight } from 'lucide-react';
-import { db } from './services/database';
+import { db } from '../services/database';
 
 interface Props {
   stock: Bike[];
