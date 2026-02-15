@@ -46,17 +46,34 @@ export const db = {
 }
 
   async addBulkMotorcycles(bikes: any[]) {
-    // Build the values string for multiple inserts
-    const values = bikes.map(bike => 
-      `('${bike.model}', '${bike.chassis}', '${bike.engine}', '${bike.color}', ${bike.exporterName ? `'${bike.exporterName}'` : 'NULL'})`
-    ).join(',');
-    
-    return await sql(`
-      INSERT INTO motorcycles (model, chassis, engine, color, exporter_name)
-      VALUES ${values}
-      RETURNING *
-    `);
-  },
+  console.log('Bulk adding motorcycles:', bikes);
+  try {
+    // Insert one by one to avoid SQL injection and syntax issues
+    const results = [];
+    for (const bike of bikes) {
+      const result = await sql`
+        INSERT INTO motorcycles (
+          model, chassis, engine, color, exporter_name, container_id, buying_price
+        ) VALUES (
+          ${bike.model}, 
+          ${bike.chassis}, 
+          ${bike.engine}, 
+          ${bike.color}, 
+          ${bike.exporterName || null},
+          ${bike.containerId || null},
+          ${bike.buyingPrice || null}
+        )
+        RETURNING *
+      `;
+      results.push(result[0]);
+    }
+    console.log('Bulk add successful:', results.length);
+    return results;
+  } catch (error) {
+    console.error('Bulk add error:', error);
+    throw error;
+  }
+}
 
   async findMotorcycleByChassis(chassis: string) {
     const result = await sql`
