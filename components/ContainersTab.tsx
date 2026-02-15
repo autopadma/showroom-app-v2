@@ -122,42 +122,69 @@ const ContainersTab: React.FC<Props> = ({
   };
 
   const handleBulkSubmit = async () => {
-    if (!selectedContainer) return;
+  if (!selectedContainer) {
+    alert('No container selected');
+    return;
+  }
+  
+  setImporting(true);
+  
+  try {
+    const rows = bulkInput.trim().split('\n');
+    const bikes = [];
     
-    setImporting(true);
-    try {
-      // Format: Model, Chassis, Engine, Color, BuyingPrice
-      const rows = bulkInput.trim().split('\n');
-      const bikes = rows.map(row => {
-        const [model, chassis, engine, color, price] = row.split(/[,\t]/).map(s => s.trim());
-        return { 
-          model, 
-          chassis, 
-          engine, 
-          color, 
-          buyingPrice: price ? Number(price) : 0,
-          containerId: selectedContainer.id
-        };
-      }).filter(b => b.model && b.chassis);
+    for (const row of rows) {
+      if (!row.trim()) continue;
       
-      // Add bikes to database
-      await db.addBulkMotorcycles(bikes);
+      // Split by comma or tab
+      const [model, chassis, engine, color, buyingPrice] = row.split(/[,\t]/).map(s => s.trim());
       
-      // Refresh data
-      await loadContainers();
+      if (!model || !chassis || !engine || !color) {
+        console.log('Skipping invalid row:', row);
+        continue;
+      }
       
-      setBulkInput('');
-      setShowImportModal(false);
-      
-      alert(`✅ Successfully imported ${bikes.length} motorcycles to ${selectedContainer.name}!`);
-      
-    } catch (error) {
-      console.error('Error importing bikes:', error);
-      alert('Failed to import bikes. Check console for details.');
-    } finally {
-      setImporting(false);
+      // IMPORTANT: Make sure containerId is set!
+      bikes.push({
+        model,
+        chassis,
+        engine,
+        color,
+        buyingPrice: buyingPrice ? Number(buyingPrice) : 0,
+        exporterName: selectedContainer.exporterName,
+        containerId: selectedContainer.id  // ✅ This must be set
+      });
     }
-  };
+    
+    console.log('Bikes to import with containerId:', bikes);
+    
+    if (bikes.length === 0) {
+      alert('No valid bikes found in input');
+      setImporting(false);
+      return;
+    }
+    
+    // Add bikes to database
+    await db.addBulkMotorcycles(bikes);
+    
+    // Refresh the container list and the current container view
+    await loadContainers();
+    
+    // Also refresh the selected container's bikes by updating the stock
+    // You might need to reload the stock data here
+    
+    setBulkInput('');
+    setShowImportModal(false);
+    
+    alert(`✅ Successfully imported ${bikes.length} motorcycles to ${selectedContainer.name}!`);
+    
+  } catch (error) {
+    console.error('Error importing bikes:', error);
+    alert('Failed to import bikes. Check console for details.');
+  } finally {
+    setImporting(false);
+  }
+};
 
       
       // Call original prop
