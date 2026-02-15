@@ -45,15 +45,22 @@ export const db = {
   }
 }
 
-  async addBulkMotorcycles(bikes: any[]) {
+ async addBulkMotorcycles(bikes: any[]) {
   console.log('Bulk adding motorcycles:', bikes);
   try {
-    // Insert one by one to avoid SQL injection and syntax issues
     const results = [];
+    
     for (const bike of bikes) {
+      // Make sure we're using the right column names
       const result = await sql`
         INSERT INTO motorcycles (
-          model, chassis, engine, color, exporter_name, container_id, buying_price
+          model, 
+          chassis, 
+          engine, 
+          color, 
+          exporter_name, 
+          container_id, 
+          buying_price
         ) VALUES (
           ${bike.model}, 
           ${bike.chassis}, 
@@ -61,16 +68,18 @@ export const db = {
           ${bike.color}, 
           ${bike.exporterName || null},
           ${bike.containerId || null},
-          ${bike.buyingPrice || null}
+          ${bike.buyingPrice ? Number(bike.buyingPrice) : null}
         )
         RETURNING *
       `;
       results.push(result[0]);
     }
-    console.log('Bulk add successful:', results.length);
+    
+    console.log(`✅ Successfully added ${results.length} motorcycles`);
     return results;
+    
   } catch (error) {
-    console.error('Bulk add error:', error);
+    console.error('❌ Bulk add error:', error);
     throw error;
   }
 }
