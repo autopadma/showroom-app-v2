@@ -84,21 +84,39 @@ const StockTab: React.FC<Props> = ({ containers, onAddBike, onAddBulk, onRemove 
   };
 
   const handleBulkSubmit = async () => {
+  if (!selectedContainer) {
+    alert('Please select a container first');
+    return;
+  }
+  
+  setImporting(true);
   try {
-    // Process CSV/Tab format: model,chassis,engine,color,buyingPrice
+    // Split by lines and then by comma or tab
     const rows = bulkInput.trim().split('\n');
     const bikes = rows.map(row => {
-      const [model, chassis, engine, color, buyingPrice] = row.split(/[,\t]/).map(s => s.trim());
+      // Split by comma or tab
+      const parts = row.split(/[,\t]/).map(s => s.trim());
+      
+      // Format: Model, Chassis, Engine, Color, BuyingPrice
+      const [model, chassis, engine, color, buyingPrice] = parts;
+      
       return { 
         model, 
         chassis, 
         engine, 
         color,
-        buyingPrice: buyingPrice ? Number(buyingPrice) : 0
+        buyingPrice: buyingPrice ? Number(buyingPrice) : 0,
+        exporterName: selectedContainer.exporterName,
+        containerId: selectedContainer.id
       };
     }).filter(b => b.model && b.chassis);
     
-    console.log('Parsed bikes:', bikes); // Add this line
+    console.log('Parsed bikes:', bikes);
+    
+    if (bikes.length === 0) {
+      alert('No valid bikes found in input');
+      return;
+    }
     
     await db.addBulkMotorcycles(bikes);
     
@@ -106,14 +124,15 @@ const StockTab: React.FC<Props> = ({ containers, onAddBike, onAddBulk, onRemove 
     await loadMotorcycles();
     
     setBulkInput('');
-    setBulkMode(false);
-    setShowModal(false);
+    setShowImportModal(false);
     
-    alert(`Successfully imported ${bikes.length} motorcycles!`);
+    alert(`✅ Successfully imported ${bikes.length} motorcycles to ${selectedContainer.name}!`);
     
   } catch (error) {
     console.error('Error bulk adding motorcycles:', error);
     alert('Failed to add motorcycles. Check console for details.');
+  } finally {
+    setImporting(false);
   }
 };
 
