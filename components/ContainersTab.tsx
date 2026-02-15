@@ -246,6 +246,9 @@ const ContainersTab: React.FC<Props> = ({
     soldBikes.forEach(b => {
       const sale = sales.find(s => s.bikeId === b.id);
       if (sale) totalSales += sale.salePrice;
+      console.log('Selected container ID:', selectedContainer.id);
+console.log('All stock:', stock);
+console.log('Filtered container bikes:', containerBikes);
     });
 
     const realizedProfit = totalSales - soldBikes.reduce((sum, b) => sum + (b.buyingPrice || 0), 0);
