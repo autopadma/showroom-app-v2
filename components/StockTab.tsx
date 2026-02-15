@@ -83,45 +83,73 @@ const StockTab: React.FC<Props> = ({ containers, onAddBike, onAddBulk, onRemove 
     }
   };
 
-  const handleBulkSubmit = async () => {
+ const handleBulkSubmit = async () => {
   if (!selectedContainer) {
-    alert('Please select a container first');
+    alert('No container selected');
     return;
   }
   
   setImporting(true);
+  console.log('=== BULK IMPORT DEBUG ===');
+  console.log('1. Selected container:', selectedContainer);
+  console.log('2. Raw bulk input:', bulkInput);
+  
   try {
-    // Split by lines and then by comma or tab
+    // Split by lines
     const rows = bulkInput.trim().split('\n');
-    const bikes = rows.map(row => {
+    console.log('3. Rows found:', rows.length, rows);
+    
+    const bikes = [];
+    
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i].trim();
+      if (!row) continue; // Skip empty lines
+      
+      console.log(`4. Processing row ${i + 1}:`, row);
+      
       // Split by comma or tab
       const parts = row.split(/[,\t]/).map(s => s.trim());
+      console.log(`5. Row ${i + 1} parts:`, parts);
       
       // Format: Model, Chassis, Engine, Color, BuyingPrice
       const [model, chassis, engine, color, buyingPrice] = parts;
       
-      return { 
-        model, 
-        chassis, 
-        engine, 
+      if (!model || !chassis || !engine || !color) {
+        console.log(`6. Row ${i + 1} missing required fields`);
+        continue;
+      }
+      
+      const bike = {
+        model,
+        chassis,
+        engine,
         color,
         buyingPrice: buyingPrice ? Number(buyingPrice) : 0,
         exporterName: selectedContainer.exporterName,
         containerId: selectedContainer.id
       };
-    }).filter(b => b.model && b.chassis);
+      
+      console.log(`7. Row ${i + 1} parsed bike:`, bike);
+      bikes.push(bike);
+    }
     
-    console.log('Parsed bikes:', bikes);
+    console.log('8. Total valid bikes to import:', bikes.length);
     
     if (bikes.length === 0) {
       alert('No valid bikes found in input');
+      setImporting(false);
       return;
     }
     
-    await db.addBulkMotorcycles(bikes);
+    console.log('9. Sending to database:', bikes);
     
-    // Refresh the list
-    await loadMotorcycles();
+    // Call the database function
+    const result = await db.addBulkMotorcycles(bikes);
+    
+    console.log('10. Database result:', result);
+    
+    // Refresh data
+    await loadContainers();
     
     setBulkInput('');
     setShowImportModal(false);
@@ -129,13 +157,13 @@ const StockTab: React.FC<Props> = ({ containers, onAddBike, onAddBulk, onRemove 
     alert(`✅ Successfully imported ${bikes.length} motorcycles to ${selectedContainer.name}!`);
     
   } catch (error) {
-    console.error('Error bulk adding motorcycles:', error);
-    alert('Failed to add motorcycles. Check console for details.');
+    console.error('❌ ERROR in bulk import:', error);
+    console.error('Error details:', JSON.stringify(error, null, 2));
+    alert('Failed to add motorcycles. Check console for details (F12).');
   } finally {
     setImporting(false);
   }
 };
-
   const handleRemove = async (id: string) => {
     if (window.confirm('Are you sure you want to remove this bike?')) {
       try {
