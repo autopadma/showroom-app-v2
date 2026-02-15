@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Customer, Bike, Sale, Container } from '../types';
 import { Search, MapPin, Phone, User, Calendar, CreditCard, FileText, X, ChevronRight, Printer, Filter, ShoppingCart, Save } from 'lucide-react';
-import { db } from '../services/database';
+import { db } from './services/database';
 
 interface Props {
   customers: Customer[];
