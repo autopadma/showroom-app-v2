@@ -46,40 +46,46 @@ export const db = {
 }
 
  async addBulkMotorcycles(bikes: any[]) {
-  console.log('Bulk adding motorcycles:', bikes);
+  console.log('📦 DATABASE: addBulkMotorcycles called with', bikes.length, 'bikes');
+  console.log('First bike:', bikes[0]);
+  
   try {
     const results = [];
     
-    for (const bike of bikes) {
-      // Make sure we're using the right column names
-      const result = await sql`
-        INSERT INTO motorcycles (
-          model, 
-          chassis, 
-          engine, 
-          color, 
-          exporter_name, 
-          container_id, 
-          buying_price
-        ) VALUES (
-          ${bike.model}, 
-          ${bike.chassis}, 
-          ${bike.engine}, 
-          ${bike.color}, 
-          ${bike.exporterName || null},
-          ${bike.containerId || null},
-          ${bike.buyingPrice ? Number(bike.buyingPrice) : null}
-        )
-        RETURNING *
-      `;
-      results.push(result[0]);
+    for (let i = 0; i < bikes.length; i++) {
+      const bike = bikes[i];
+      console.log(`Inserting bike ${i + 1}:`, bike);
+      
+      try {
+        const result = await sql`
+          INSERT INTO motorcycles (
+            model, chassis, engine, color, exporter_name, container_id, buying_price
+          ) VALUES (
+            ${bike.model}, 
+            ${bike.chassis}, 
+            ${bike.engine}, 
+            ${bike.color}, 
+            ${bike.exporterName || null},
+            ${bike.containerId || null},
+            ${bike.buyingPrice || null}
+          )
+          RETURNING *
+        `;
+        
+        console.log(`✅ Bike ${i + 1} inserted:`, result[0]);
+        results.push(result[0]);
+        
+      } catch (insertError) {
+        console.error(`❌ Error inserting bike ${i + 1}:`, insertError);
+        throw insertError; // Stop on first error
+      }
     }
     
-    console.log(`✅ Successfully added ${results.length} motorcycles`);
+    console.log(`✅ All ${results.length} bikes inserted successfully`);
     return results;
     
   } catch (error) {
-    console.error('❌ Bulk add error:', error);
+    console.error('❌ DATABASE ERROR in addBulkMotorcycles:', error);
     throw error;
   }
 }
