@@ -1,59 +1,38 @@
 import { neon } from '@neondatabase/serverless';
 
-// Get connection string from environment
+console.log('🔄 Database service loading...');
 const sql = neon(import.meta.env.VITE_DATABASE_URL);
+console.log('✅ SQL client created');
 
 export const db = {
   // ============ MOTORCYCLES ============
   async getMotorcycles() {
-    return await sql`
-      SELECT * FROM motorcycles 
-      WHERE status = 'available' 
-      ORDER BY created_at DESC
-    `;
+    console.log('🔍 Fetching motorcycles...');
+    try {
+      const result = await sql`
+        SELECT * FROM motorcycles 
+        WHERE status = 'available' 
+        ORDER BY created_at DESC
+      `;
+      console.log('✅ Found motorcycles:', result.length);
+      return result;
+    } catch (error) {
+      console.error('❌ Error:', error);
+      throw error;
+    }
   },
 
   async getAllMotorcycles() {
-    return await sql`
+    const result = await sql`
       SELECT * FROM motorcycles 
       ORDER BY created_at DESC
     `;
+    return result;
   },
 
   async addMotorcycle(bike: any) {
-  console.log('Adding motorcycle:', bike);
-  try {
-    // ✅ Correct - using tagged template with backticks
-    const result = await sql`
-      INSERT INTO motorcycles (
-        model, chassis, engine, color, exporter_name, container_id, buying_price
-      ) VALUES (
-        ${bike.model}, 
-        ${bike.chassis}, 
-        ${bike.engine}, 
-        ${bike.color}, 
-        ${bike.exporterName || null},
-        ${bike.containerId || null},
-        ${bike.buyingPrice || null}
-      )
-      RETURNING *
-    `;
-    
-    console.log('✅ Success:', result[0]);
-    return result[0];
-  } catch (error) {
-    console.error('❌ Error:', error);
-    throw error;
-  }
-}
- async addBulkMotorcycles(bikes: any[]) {
-  console.log('Bulk adding motorcycles:', bikes);
-  try {
-    const results = [];
-    
-    // Insert one by one using the correct tagged template format
-    for (const bike of bikes) {
-      // Use the tagged template format correctly - no .query()
+    console.log('➕ Adding motorcycle:', bike);
+    try {
       const result = await sql`
         INSERT INTO motorcycles (
           model, chassis, engine, color, exporter_name, container_id, buying_price
@@ -68,21 +47,60 @@ export const db = {
         )
         RETURNING *
       `;
-      
-      results.push(result[0]);
+      console.log('✅ Added:', result[0]);
+      return result[0];
+    } catch (error) {
+      console.error('❌ Error adding motorcycle:', error);
+      throw error;
     }
-    
-    console.log('✅ Bulk add successful:', results.length);
-    return results;
-    
-  } catch (error) {
-    console.error('❌ Bulk add error:', error);
-    throw error;
-  }
-}
+  },
+
+  async addBulkMotorcycles(bikes: any[]) {
+    console.log('📦 Bulk adding', bikes.length, 'motorcycles');
+    try {
+      const results = [];
+      
+      // Insert one by one - this is fine for small batches
+      for (const bike of bikes) {
+        console.log('Inserting:', bike);
+        
+        const result = await sql`
+          INSERT INTO motorcycles (
+            model, chassis, engine, color, exporter_name, container_id, buying_price
+          ) VALUES (
+            ${bike.model}, 
+            ${bike.chassis}, 
+            ${bike.engine}, 
+            ${bike.color}, 
+            ${bike.exporterName || null},
+            ${bike.containerId || null},
+            ${bike.buyingPrice || null}
+          )
+          RETURNING *
+        `;
+        
+        results.push(result[0]);
+      }
+      
+      console.log('✅ Bulk add successful:', results.length);
+      return results;
+      
+    } catch (error) {
+      console.error('❌ Error in bulk add:', error);
+      throw error;
+    }
+  },
+
+  async findMotorcycleByChassis(chassis: string) {
+    const result = await sql`
+      SELECT * FROM motorcycles 
+      WHERE chassis = ${chassis} AND status = 'available'
+    `;
+    return result[0] || null;
+  },
 
   async updateMotorcycleRegistration(id: string, regNumber: string) {
-    return await sql`
+    await sql`
       UPDATE motorcycles 
       SET registration_number = ${regNumber} 
       WHERE id = ${id}
@@ -90,7 +108,7 @@ export const db = {
   },
 
   async deleteMotorcycle(id: string) {
-    return await sql`
+    await sql`
       DELETE FROM motorcycles 
       WHERE id = ${id}
     `;
@@ -98,10 +116,11 @@ export const db = {
 
   // ============ CONTAINERS ============
   async getContainers() {
-    return await sql`
+    const result = await sql`
       SELECT * FROM containers 
       ORDER BY created_at DESC
     `;
+    return result;
   },
 
   async addContainer(container: any) {
@@ -115,10 +134,11 @@ export const db = {
 
   // ============ CUSTOMERS ============
   async getCustomers() {
-    return await sql`
+    const result = await sql`
       SELECT * FROM customers 
       ORDER BY created_at DESC
     `;
+    return result;
   },
 
   async addCustomer(customer: any) {
@@ -149,7 +169,7 @@ export const db = {
   },
 
   async updateCustomerNotes(id: string, notes: string) {
-    return await sql`
+    await sql`
       UPDATE customers 
       SET notes = ${notes} 
       WHERE id = ${id}
@@ -158,7 +178,7 @@ export const db = {
 
   // ============ SALES ============
   async getSales() {
-    return await sql`
+    const result = await sql`
       SELECT s.*, 
              m.model, m.chassis, m.engine, m.color,
              c.name as customer_name, c.phone
@@ -167,6 +187,7 @@ export const db = {
       JOIN customers c ON s.customer_id = c.id
       ORDER BY s.sale_date DESC
     `;
+    return result;
   },
 
   async createSale(sale: any) {
@@ -230,7 +251,7 @@ export const db = {
   },
 
   async getRecentSales(limit: number = 5) {
-    return await sql`
+    const result = await sql`
       SELECT 
         s.sale_date as date,
         c.name as customer,
@@ -242,5 +263,6 @@ export const db = {
       ORDER BY s.sale_date DESC
       LIMIT ${limit}
     `;
+    return result;
   }
 };
