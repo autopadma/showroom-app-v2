@@ -59,6 +59,51 @@ const ContainersTab: React.FC<Props> = ({
         importDate: new Date().toISOString(),
         bikeIds: []
       });
+      const handleBulkSubmit = async () => {
+    if (!selectedContainer) {
+      alert('No container selected');
+      return;
+    }
+    
+    setImporting(true);
+    console.log('=== BULK IMPORT DEBUG ===');
+    console.log('Selected container:', selectedContainer);
+    console.log('Bulk input:', bulkInput);
+    
+    try {
+      const rows = bulkInput.trim().split('\n');
+      const bikes = [];
+      
+      for (const row of rows) {
+        if (!row.trim()) continue;
+        
+        const [model, chassis, engine, color, buyingPrice] = row.split(/[,\t]/).map(s => s.trim());
+        
+        if (!model || !chassis || !engine || !color) {
+          console.log('Skipping invalid row:', row);
+          continue;
+        }
+        
+        bikes.push({
+          model,
+          chassis,
+          engine,
+          color,
+          buyingPrice: buyingPrice ? Number(buyingPrice) : 0,
+          exporterName: selectedContainer.exporterName,
+          containerId: selectedContainer.id
+        });
+      }
+      
+      console.log('Bikes to import:', bikes);
+      
+      if (bikes.length === 0) {
+        alert('No valid bikes found in input');
+        setImporting(false);
+        return;
+      }
+      
+      await db.addBulkMotorcycles(bikes);
       
       // Update local state
       setContainers(prev => [...prev, newContainer]);
@@ -100,6 +145,20 @@ const ContainersTab: React.FC<Props> = ({
       
       // Refresh data
       await loadContainers();
+      
+      setBulkInput('');
+      setShowImportModal(false);
+      
+      alert(`✅ Successfully imported ${bikes.length} motorcycles to ${selectedContainer.name}!`);
+      
+    } catch (error) {
+      console.error('Error importing bikes:', error);
+      alert('Failed to import bikes. Check console for details.');
+    } finally {
+      setImporting(false);
+    }
+  };
+
       
       // Call original prop
       onAddBikesToContainer(selectedContainer.id, bikes);
