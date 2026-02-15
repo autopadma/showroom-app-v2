@@ -84,30 +84,38 @@ const StockTab: React.FC<Props> = ({ containers, onAddBike, onAddBulk, onRemove 
   };
 
   const handleBulkSubmit = async () => {
-    try {
-      // Process CSV/Tab format: model,chassis,engine,color
-      const rows = bulkInput.trim().split('\n');
-      const bikes = rows.map(row => {
-        const [model, chassis, engine, color] = row.split(/[,\t]/).map(s => s.trim());
-        return { model, chassis, engine, color };
-      }).filter(b => b.model && b.chassis);
-      
-      await db.addBulkMotorcycles(bikes);
-      
-      // Refresh the list
-      await loadMotorcycles();
-      
-      setBulkInput('');
-      setBulkMode(false);
-      setShowModal(false);
-      
-      // Call the original prop
-      onAddBulk(bikes);
-    } catch (error) {
-      console.error('Error bulk adding motorcycles:', error);
-      alert('Failed to add motorcycles. Check console for details.');
-    }
-  };
+  try {
+    // Process CSV/Tab format: model,chassis,engine,color,buyingPrice
+    const rows = bulkInput.trim().split('\n');
+    const bikes = rows.map(row => {
+      const [model, chassis, engine, color, buyingPrice] = row.split(/[,\t]/).map(s => s.trim());
+      return { 
+        model, 
+        chassis, 
+        engine, 
+        color,
+        buyingPrice: buyingPrice ? Number(buyingPrice) : 0
+      };
+    }).filter(b => b.model && b.chassis);
+    
+    console.log('Parsed bikes:', bikes); // Add this line
+    
+    await db.addBulkMotorcycles(bikes);
+    
+    // Refresh the list
+    await loadMotorcycles();
+    
+    setBulkInput('');
+    setBulkMode(false);
+    setShowModal(false);
+    
+    alert(`Successfully imported ${bikes.length} motorcycles!`);
+    
+  } catch (error) {
+    console.error('Error bulk adding motorcycles:', error);
+    alert('Failed to add motorcycles. Check console for details.');
+  }
+};
 
   const handleRemove = async (id: string) => {
     if (window.confirm('Are you sure you want to remove this bike?')) {
