@@ -18,7 +18,6 @@ export interface Container {
   name: string; // e.g., "Feb 2024 Shipment"
   exporterName: string;
   importDate: string;
-  bikeIds: string[];
 }
 
 export interface Customer {
