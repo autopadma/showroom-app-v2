@@ -238,7 +238,24 @@ const ContainersTab: React.FC<Props> = ({
   }
 
   if (view === 'detail' && selectedContainer) {
-    const containerBikes = stock.filter(b => b.containerId === selectedContainer.id);
+    // Add debug logging
+console.log('Container detail view - selected ID:', selectedContainer.id);
+console.log('All stock items:', stock.map(b => ({id: b.id, model: b.model, containerId: b.containerId})));
+
+const containerBikes = stock.filter(b => {
+  // Handle both string and number IDs
+  const bikeContainerId = b.containerId ? b.containerId.toString() : null;
+  const selectedId = selectedContainer.id.toString();
+  const match = bikeContainerId === selectedId;
+  
+  if (match) {
+    console.log('✅ Match found:', b.model, 'containerId:', bikeContainerId);
+  }
+  
+  return match;
+});
+
+console.log('Filtered container bikes:', containerBikes);
     const totalBuyingPrice = containerBikes.reduce((sum, b) => sum + (b.buyingPrice || 0), 0);
     const soldBikes = containerBikes.filter(b => b.status === 'sold');
     
